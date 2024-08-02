@@ -1,7 +1,7 @@
 {
   "C_Cpp.intelliSenseEngine": "default",
   "cmake.configureOnOpen": true,
-  "idf.portWin": "COM6",
+  "idf.portWin": "COM5",
   "idf.adapterTargetName": "esp32s2",
   "idf.openOcdConfigs": [
     "board/esp32s2-kaluga-1.cfg"
