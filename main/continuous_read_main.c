@@ -27,7 +27,7 @@
 #define EXAMPLE_ADC_GET_DATA(p_data)        ((p_data)->type2.data)
 #endif
 
-#define EXAMPLE_READ_LEN                    32
+#define EXAMPLE_READ_LEN                    8
 // Note that this is in bytes, and each adc reading is 2 bytes. Therefore the actual 
 // buffer length is 1/2 of this.
 // default maximum is 1024 bytes, 512 values
