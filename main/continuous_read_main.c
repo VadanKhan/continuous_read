@@ -7,6 +7,7 @@
 #include "freertos/semphr.h"
 #include "esp_adc/adc_continuous.h"
 #include "esp_timer.h" // Include esp_timer for microsecond timestamps
+#include "esp_rom_sys.h" // Include esp_rom_sys for esp_rom_delay_us
 
 #define EXAMPLE_ADC_UNIT                    ADC_UNIT_1
 #define _EXAMPLE_ADC_UNIT_STR(unit)         #unit
@@ -27,7 +28,7 @@
 #define EXAMPLE_ADC_GET_DATA(p_data)        ((p_data)->type2.data)
 #endif
 
-#define EXAMPLE_READ_LEN                    8
+#define EXAMPLE_READ_LEN                    4
 // Note that this is in bytes, and each adc reading is 2 bytes. Therefore the actual 
 // buffer length is 1/2 of this.
 // default maximum is 1024 bytes, 512 values
@@ -107,41 +108,38 @@ void app_main(void)
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
         uint64_t notify_time = esp_timer_get_time(); // Time after notification
 
-        char unit[] = EXAMPLE_ADC_UNIT_STR(EXAMPLE_ADC_UNIT);
-
         while (1) {
-            uint64_t start_time = esp_timer_get_time(); // Start time before notification
-            ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-            uint64_t notify_time = esp_timer_get_time(); // Time after notification
+            uint64_t read_start_time = esp_timer_get_time(); // Start time before reading ADC data
+            ret = adc_continuous_read(handle, result, EXAMPLE_READ_LEN, &ret_num, 0);
+            uint64_t read_end_time = esp_timer_get_time(); // Time after reading ADC data
 
-            char unit[] = EXAMPLE_ADC_UNIT_STR(EXAMPLE_ADC_UNIT);
-
-            while (1) {
-                uint64_t read_start_time = esp_timer_get_time(); // Start time before reading ADC data
-                ret = adc_continuous_read(handle, result, EXAMPLE_READ_LEN, &ret_num, 0);
-                uint64_t read_end_time = esp_timer_get_time(); // Time after reading ADC data
-
-                if (ret == ESP_OK) {
-                    uint64_t process_start_time = esp_timer_get_time(); // Start time before processing data
-                    uint64_t buffer_read_time = esp_timer_get_time(); // Capture the time when the buffer is read
-                    for (int i = 0; i < ret_num; i += SOC_ADC_DIGI_RESULT_BYTES) {
-                        uint64_t sample_time = buffer_read_time + (i / SOC_ADC_DIGI_RESULT_BYTES) * SAMPLE_INTERVAL_US; // Calculate the time for each sample
-                        adc_digi_output_data_t *p = (adc_digi_output_data_t*)&result[i];
-                        uint32_t chan_num = EXAMPLE_ADC_GET_CHANNEL(p);
-                        uint32_t data = EXAMPLE_ADC_GET_DATA(p);
-                        if (chan_num < SOC_ADC_CHANNEL_NUM(EXAMPLE_ADC_UNIT)) {
-                            float voltage = (float)data / (1 << EXAMPLE_ADC_BIT_WIDTH) * 2.5;
-                            // Removed individual print statements for each sample
-                        }
+            if (ret == ESP_OK) {
+                uint64_t process_start_time = esp_timer_get_time(); // Start time before processing data
+                uint64_t buffer_read_time = esp_timer_get_time(); // Capture the time when the buffer is read
+                for (int i = 0; i < ret_num; i += SOC_ADC_DIGI_RESULT_BYTES) {
+                    uint64_t sample_time = buffer_read_time + (i / SOC_ADC_DIGI_RESULT_BYTES) * SAMPLE_INTERVAL_US; // Calculate the time for each sample
+                    adc_digi_output_data_t *p = (adc_digi_output_data_t*)&result[i];
+                    uint32_t chan_num = EXAMPLE_ADC_GET_CHANNEL(p);
+                    uint32_t data = EXAMPLE_ADC_GET_DATA(p);
+                    if (chan_num < SOC_ADC_CHANNEL_NUM(EXAMPLE_ADC_UNIT)) {
+                        float voltage = (float)data / (1 << EXAMPLE_ADC_BIT_WIDTH) * 2.5;
+                        // printf("Time: %llu us, Channel: %lu, Voltage: %.2f V\n", sample_time, chan_num, voltage); // Print voltage data
                     }
-                    uint64_t process_end_time = esp_timer_get_time(); // Time after processing data
-                    printf("Notify time: %llu us, Read time: %llu us, Process time: %llu us\n",
-                        notify_time - start_time,
-                        read_end_time - read_start_time,
-                        process_end_time - process_start_time);
-                } else if (ret == ESP_ERR_TIMEOUT) {
-                    break;
                 }
+                uint64_t process_end_time = esp_timer_get_time(); // Time after processing data
+                printf("Notify time: %llu us, Read time: %llu us, Process time: %llu us\n",
+                    notify_time - start_time,
+                    read_end_time - read_start_time,
+                    process_end_time - process_start_time);
+
+                // Ensure 20us interval between readings
+                uint64_t end_time = esp_timer_get_time();
+                int64_t delay_time = 20 - (end_time - start_time);
+                if (delay_time > 0) {
+                    esp_rom_delay_us(delay_time);
+                }
+            } else if (ret == ESP_ERR_TIMEOUT) {
+                break;
             }
         }
     }
